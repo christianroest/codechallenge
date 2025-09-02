@@ -78,7 +78,7 @@ def load_dataset(base_dir: str, limit: int = 99999999) -> Tuple[np.ndarray, np.n
     """
 
     # Look for subdirectories containing the data
-    subdirs = glob(path.join(base_dir, "video_*/"))
+    subdirs = sorted(glob(path.join(base_dir, "video_*/")))
 
     for subdir in subdirs:
         print(f"Loading data from {subdir}...")
