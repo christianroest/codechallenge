@@ -39,29 +39,31 @@ def process_path(file_path: str) -> Tuple[tf.Tensor, tf.Tensor]:
     seg_contents = tf.io.read_file(seg_path)
     seg = tf.io.decode_png(seg_contents, channels=3)
 
+    # Take only one channel for segmentation (assuming all channels are identical)
+    seg = seg[..., :1]
+
     return img, seg
 
 
-def make_tf_dataset(base_dir: str) -> tf.data.Dataset:
-    """
-    Creates a TensorFlow dataset from image files located in the specified base directory.
+def random_crop_img_and_seg(img, seg, crop_size):
+    combined = tf.concat([img, seg], axis=-1)
+    combined_cropped = tf.image.random_crop(combined, size=[*crop_size, 4])
+    return combined_cropped[:, :, :3], combined_cropped[:, :, 3:]
 
-    Args:
-        base_dir (str): The base directory containing image files.
-
-    Returns:
-        tf.data.Dataset: A TensorFlow dataset containing the image file paths.
-    """
-
+def make_tf_dataset(base_dir: str, crop_size=None) -> tf.data.Dataset:
     img_files = tf.data.Dataset.list_files(
         path.join(base_dir, "video_01/rgb/*.png"), shuffle=False
     )
     img_files = img_files.shuffle(buffer_size=5000, reshuffle_each_iteration=False)
     dataset = img_files.map(
-        lambda x: tf.py_function(
-            func=process_path, inp=[x], Tout=(tf.uint8, tf.uint8)
-        ),
+        lambda x: tf.py_function(func=process_path, inp=[x], Tout=(tf.uint8, tf.uint8)),
         num_parallel_calls=tf.data.AUTOTUNE,
     )
-    
+
+    if crop_size is not None:
+        dataset = dataset.map(
+            lambda img, seg: random_crop_img_and_seg(img, seg, crop_size),
+            num_parallel_calls=tf.data.AUTOTUNE,
+        )
+
     return dataset
