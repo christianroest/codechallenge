@@ -7,14 +7,12 @@ import numpy as np
 import tensorflow as tf
 
 
-def decode_img(img, img_height=1024, img_width=1024):
-
-
+def decode_img(img):
     # Convert the compressed string to a 3D uint8 tensor
     img = tf.io.decode_png(img, channels=3)
 
     # Resize the image to the desired size
-    return tf.image.resize(img, [img_height, img_width])
+    return img
 
 
 def process_path(file_path: str) -> Tuple[tf.Tensor, tf.Tensor]:
@@ -34,12 +32,12 @@ def process_path(file_path: str) -> Tuple[tf.Tensor, tf.Tensor]:
     seg_path = file_path.replace("/rgb/", "/segmentation/")
 
     # Read and decode the image
-    file_contents = tf.io.read_file(file_path)
-    img = decode_img(file_contents)
+    img_contents = tf.io.read_file(file_path)
+    img = tf.io.decode_png(img_contents, channels=3)
 
     # Read and decode the segmentation mask
     seg_contents = tf.io.read_file(seg_path)
-    seg = decode_img(seg_contents)
+    seg = tf.io.decode_png(seg_contents, channels=3)
 
     return img, seg
 
@@ -58,10 +56,10 @@ def make_tf_dataset(base_dir: str) -> tf.data.Dataset:
     img_files = tf.data.Dataset.list_files(
         path.join(base_dir, "video_01/rgb/*.png"), shuffle=False
     )
-    # img_files = img_files.shuffle(buffer_size=100, reshuffle_each_iteration=False)
+    img_files = img_files.shuffle(buffer_size=5000, reshuffle_each_iteration=False)
     dataset = img_files.map(
         lambda x: tf.py_function(
-            func=process_path, inp=[x], Tout=(tf.float32, tf.float32)
+            func=process_path, inp=[x], Tout=(tf.uint8, tf.uint8)
         ),
         num_parallel_calls=tf.data.AUTOTUNE,
     )
