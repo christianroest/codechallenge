@@ -4,97 +4,66 @@ from typing import List, Tuple
 
 import cv2
 import numpy as np
+import tensorflow as tf
 
 
-def find_image_paths(base_dir: str) -> List[str]:
+def decode_img(img, img_height=1024, img_width=1024):
+
+
+    # Convert the compressed string to a 3D uint8 tensor
+    img = tf.io.decode_png(img, channels=3)
+
+    # Resize the image to the desired size
+    return tf.image.resize(img, [img_height, img_width])
+
+
+def process_path(file_path: str) -> Tuple[tf.Tensor, tf.Tensor]:
     """
-    Finds all image file paths with a given extension in the specified base directory and its subdirectories.
+    Given a file path, reads the image and its corresponding segmentation mask,
+    decodes them, and returns them as tensors.
+    Args:
+        file_path (str): Path to the image file.
+    Returns:
+        Tuple[tf.Tensor, tf.Tensor]: A tuple containing the image tensor and the segmentation mask
+        tensor.
+    """
+    # Convert the file path to a string
+    file_path = file_path.numpy().decode("utf-8")
+
+    # Derive the segmentation file path from the image file path
+    seg_path = file_path.replace("/rgb/", "/segmentation/")
+
+    # Read and decode the image
+    file_contents = tf.io.read_file(file_path)
+    img = decode_img(file_contents)
+
+    # Read and decode the segmentation mask
+    seg_contents = tf.io.read_file(seg_path)
+    seg = decode_img(seg_contents)
+
+    return img, seg
+
+
+def make_tf_dataset(base_dir: str) -> tf.data.Dataset:
+    """
+    Creates a TensorFlow dataset from image files located in the specified base directory.
 
     Args:
-        base_dir (str): The base directory to search for image files.
+        base_dir (str): The base directory containing image files.
 
     Returns:
-        list: A list of file paths matching the specified extension within the directory structure.
+        tf.data.Dataset: A TensorFlow dataset containing the image file paths.
     """
-    # Find all images in the directory and its subdirectories
-    matches = sorted(glob(path.join(base_dir, "**", "rgb", f"*.png"), recursive=True))
 
-    return matches
-
-
-def find_segmentation_paths(base_dir: str) -> List[str]:
-    """
-    Finds all segmentation file paths with a given extension in the specified base directory and its subdirectories.
-
-    Args:
-        base_dir (str): The base directory to search for segmentation files.
-
-    Returns:
-        list: A list of file paths matching the specified extension within the directory structure.
-    """
-    # Find all segmentations in the directory and its subdirectories
-    matches = sorted(
-        glob(path.join(base_dir, "**", "segmentation", f"*.png"), recursive=True)
+    img_files = tf.data.Dataset.list_files(
+        path.join(base_dir, "video_01/rgb/*.png"), shuffle=False
     )
-
-    return matches
-
-
-def read_images_to_numpy(image_paths: List[str]) -> np.ndarray:
-    """
-    Reads images from the provided file paths and stacks them into a single numpy array.
-
-    Args:
-        image_paths (list): A list of file paths to the images.
-
-    Returns:
-        numpy.ndarray: A numpy array containing all the images stacked along a new axis.
-    """
-
-    images = []
-    for i, p in enumerate(image_paths):
-        img = cv2.imread(p)
-        if img is None:
-            raise ValueError(f"Image at path {p} could not be read.")
-        images.append(img)
-        print(i, "/", len(image_paths))
-    images = np.stack(images, axis=0)
-    return images
-
-
-def load_dataset(base_dir: str, limit: int = 99999999) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Loads a dataset of images and their corresponding segmentations from subdirectories within a base directory.
-    The function searches for subdirectories matching the pattern "video_*/" inside the specified base directory.
-    For each subdirectory, it attempts to find image and segmentation files, reads them into NumPy arrays.
-
-    Args:
-        base_dir (str): The base directory containing subdirectories with image and segmentation data.
-        limit (int, optional): The maximum number of images and segmentations to load from each subdirectory, for testing.
-    Returns:
-        Tuple[np.ndarray, np.ndarray]: A tuple containing two NumPy arrays:
-            - images: Array of loaded images.
-            - segmentations: Array of loaded segmentation masks.
-    """
-
-    # Look for subdirectories containing the data
-    subdirs = sorted(glob(path.join(base_dir, "video_*/")))
-
-    for subdir in subdirs:
-        print(f"Loading data from {subdir}...")
-        try:
-            image_paths = find_image_paths(subdir)[:limit]
-            segmentation_paths = find_segmentation_paths(subdir)[:limit]
-
-            images = read_images_to_numpy(image_paths)
-            segmentations = read_images_to_numpy(segmentation_paths)
-
-            print(
-                f"Loaded {images.shape[0]} images and {segmentations.shape[0]} segmentations from {subdir}."
-            )
-
-        except Exception as e:
-            print(f"Error loading data from {subdir}: {e}, skipping this directory.")
-            continue
-
-    return images, segmentations
+    # img_files = img_files.shuffle(buffer_size=100, reshuffle_each_iteration=False)
+    dataset = img_files.map(
+        lambda x: tf.py_function(
+            func=process_path, inp=[x], Tout=(tf.float32, tf.float32)
+        ),
+        num_parallel_calls=tf.data.AUTOTUNE,
+    )
+    
+    return dataset
