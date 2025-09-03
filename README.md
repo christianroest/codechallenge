@@ -73,3 +73,18 @@ After this process completes, your data folder should look as follows:
  |- video_left.avi
  |- [...]
 ```
+
+## Training a model
+Train a model by loading the environment, and calling `main.py` as follows:
+```
+python main.py -r [train_data_root] -w [work_dir]
+```
+Where, `work_dir` is a directory where the output of the run can be stored (trained models and sample PNGs)
+
+## Inference
+Predict on new images by loading the environment, and calling `predict.py` as follows:
+```
+python predict.py -r [test_data_root] -m [path_to_model_1] [path_to_model_2] ...
+```
+This looks for subdirectories in `test_data_root` containing the `rgb/` folder.
+Predictions (segmentation masks) are exported as PNGs to a new `predictions/` folder, adjacent to the existing `rgb/` folder.
