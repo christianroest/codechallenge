@@ -27,6 +27,7 @@ OUT_CLASSES = {
     9: "Catheter",
 }
 
+# Define colors to use in visualizations
 COLORS = [
     (0, 0, 0),       # Background - Black
     (255, 0, 0),     # Tool clasper - Blue
