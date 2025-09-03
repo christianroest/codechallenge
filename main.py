@@ -9,7 +9,6 @@ import tensorflow as tf
 from data import make_tf_dataset
 from model import build_model
 from viz import plot_sample
-from loss import CategoricalFocalCrossentropy, CategoricalDiceLoss
 
 # Define model input shape
 IN_SHAPE = 1024, 1024, 3
@@ -149,10 +148,7 @@ if __name__ == "__main__":
     m.summary()
     m.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=2e-4),
-        # loss=SparseDiceLoss(num_classes=len(OUT_CLASSES)),
         loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
-        # loss=CategoricalFocalCrossentropy(from_logits=True),
-        # loss=CategoricalDiceLoss(from_logits=True),
         metrics=["accuracy"],
     )
 
