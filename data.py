@@ -61,7 +61,7 @@ def central_crop(img, size):
     return img[top:top+size[0], left:left+size[1]]
 
 def make_tf_dataset(
-    dir_names: List[str], random_crop=None, center_crop=None, num_classes=10
+    dir_names: List[str], random_crop=None, center_crop=None, num_classes=10, shuffle_before_load=False
 ) -> tf.data.Dataset:
     img_files = []
 
@@ -71,7 +71,11 @@ def make_tf_dataset(
 
     for base_dir in dir_names:
         img_files += glob(path.join(base_dir, "rgb/*.png"))
-
+    
+    if shuffle_before_load:
+        rng = np.random.default_rng(12345)
+        rng.shuffle(img_files)
+    
     img_files = tf.data.Dataset.from_tensor_slices(np.array(img_files).flatten())
     img_files = img_files.shuffle(buffer_size=500, reshuffle_each_iteration=False)
     dataset = img_files.map(

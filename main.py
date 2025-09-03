@@ -25,7 +25,8 @@ out_classes = {
 }
 data_root = "/scratch/p286425/challenge/data/code_data/"
 SAMPLE_DIR = "./samples/"
-NUM_EPOCHS = 25
+NUM_EPOCHS = 150
+
 TRAIN_BATCH_SIZE = 10
 
 if __name__ == "__main__":
@@ -44,7 +45,7 @@ if __name__ == "__main__":
     print("Val dirs:", valid_dirs)
 
     # First create the training and validation datasets
-    train_dataset = make_tf_dataset(train_dirs, random_crop=in_shape[:2])
+    train_dataset = make_tf_dataset(train_dirs, random_crop=in_shape[:2], shuffle_before_load=True)
     train_dataset = train_dataset.batch(TRAIN_BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
     train_dataset = train_dataset.repeat()
 
@@ -106,19 +107,21 @@ if __name__ == "__main__":
     m = build_model(in_shape, len(out_classes))
     m.summary()
     m.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=2e-4),
         # loss=SparseDiceLoss(num_classes=len(out_classes)),
-        # loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
+        loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
         # loss=CategoricalFocalCrossentropy(from_logits=True),
-        loss=CategoricalDiceLoss(from_logits=True),
+        # loss=CategoricalDiceLoss(from_logits=True),
         metrics=["accuracy"],
     )
 
     print(train_dataset.take(1))
-
+    
+    best_loss = 999999.
+    best_epoch = -1
     for epoch in range(NUM_EPOCHS):
         print(f"Epoch {epoch+1}/{NUM_EPOCHS}")
-        m.fit(train_dataset, epochs=1, steps_per_epoch=100)
+        m.fit(train_dataset, epochs=1, steps_per_epoch=200)
         preds = m.predict(sample_inputs)  # Run a prediction to test the model
         int_preds = np.argmax(preds, axis=-1).astype(np.uint8)
         print("INT_PREDS:", int_preds.shape, np.amax(int_preds))
@@ -150,3 +153,13 @@ if __name__ == "__main__":
         
         print(f"Validation loss: {loss:.4f}")
         print(f"Validation accuracy: {accuracy:.4f}")
+        
+        if loss < best_loss:
+            print(f"[I] Validation loss improved from {best_loss:.4f} (epoch {best_epoch}) to {loss:.4f} (epoch {epoch})")
+            best_epoch = epoch
+            best_loss = loss
+            print("Saving to best_loss.h5")
+            m.save("best_loss.h5")
+        
+        print("Saving to latest.h5")
+        m.save("latest.h5")
