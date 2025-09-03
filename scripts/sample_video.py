@@ -39,7 +39,7 @@ def main(args):
         if not (directory.exists() and (directory/'video_left.avi').exists()):
             print(f"{directory} does not a video directory. please make sure video directory path is correct")
     
-    for directory in tqdm(video_dirs, desc='unpacking dataset', bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}'):
+    for directory in tqdm(video_dirs[19:], desc='unpacking dataset', bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}'):
         rgb_dir = (directory/'rgb')
         sample_video(directory/'video_left.avi', rgb_dir, sampiling_period, args.jobs)
 

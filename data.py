@@ -40,29 +40,54 @@ def process_path(file_path: str) -> Tuple[tf.Tensor, tf.Tensor]:
     seg = tf.io.decode_png(seg_contents, channels=3)
 
     # Take only one channel for segmentation (assuming all channels are identical)
-    seg = seg[..., :1]
+    seg = tf.cast(seg, tf.uint8)
+    seg = seg[..., 0]
+
+    # Convert segmentation to one-hot encoding
+    seg = tf.one_hot(seg, depth=10, axis=-1, dtype=tf.uint8)
 
     return img, seg
 
 
 def random_crop_img_and_seg(img, seg, crop_size):
     combined = tf.concat([img, seg], axis=-1)
-    combined_cropped = tf.image.random_crop(combined, size=[*crop_size, 4])
+    combined_cropped = tf.image.random_crop(combined, size=[*crop_size, 13])
     return combined_cropped[:, :, :3], combined_cropped[:, :, 3:]
 
-def make_tf_dataset(base_dir: str, crop_size=None) -> tf.data.Dataset:
-    img_files = tf.data.Dataset.list_files(
-        path.join(base_dir, "video_01/rgb/*.png"), shuffle=False
-    )
-    img_files = img_files.shuffle(buffer_size=5000, reshuffle_each_iteration=False)
+def central_crop(img, size):
+    h, w = tf.shape(img)[0], tf.shape(img)[1]
+    top = (h - size[0]) // 2
+    left = (w - size[1]) // 2
+    return img[top:top+size[0], left:left+size[1]]
+
+def make_tf_dataset(
+    dir_names: List[str], random_crop=None, center_crop=None, num_classes=10
+) -> tf.data.Dataset:
+    img_files = []
+
+    assert not (
+        random_crop is not None and center_crop is not None
+    ), "Only one of random_crop or center_crop can be specified"
+
+    for base_dir in dir_names:
+        img_files += glob(path.join(base_dir, "rgb/*.png"))
+
+    img_files = tf.data.Dataset.from_tensor_slices(np.array(img_files).flatten())
+    img_files = img_files.shuffle(buffer_size=500, reshuffle_each_iteration=False)
     dataset = img_files.map(
         lambda x: tf.py_function(func=process_path, inp=[x], Tout=(tf.uint8, tf.uint8)),
         num_parallel_calls=tf.data.AUTOTUNE,
     )
 
-    if crop_size is not None:
+    if random_crop is not None:
         dataset = dataset.map(
-            lambda img, seg: random_crop_img_and_seg(img, seg, crop_size),
+            lambda img, seg: random_crop_img_and_seg(img, seg, random_crop),
+            num_parallel_calls=tf.data.AUTOTUNE,
+        )
+
+    if center_crop is not None:
+        dataset = dataset.map(
+            lambda img, seg: (central_crop(img, center_crop), central_crop(seg, center_crop)),
             num_parallel_calls=tf.data.AUTOTUNE,
         )
 
