@@ -8,7 +8,7 @@ import tensorflow as tf
 from data import make_tf_dataset
 from model import build_model
 from viz import plot_sample
-from loss import CategoricalFocalCrossentropy
+from loss import CategoricalFocalCrossentropy, CategoricalDiceLoss
 
 in_shape = 1024, 1024, 3
 out_classes = {
@@ -96,10 +96,11 @@ if __name__ == "__main__":
     m = build_model(in_shape, len(out_classes))
     m.summary()
     m.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
         # loss=SparseDiceLoss(num_classes=len(out_classes)),
         # loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
         loss=CategoricalFocalCrossentropy(from_logits=True),
+        # loss=CategoricalDiceLoss(from_logits=True),
         metrics=["accuracy"],
     )
 
