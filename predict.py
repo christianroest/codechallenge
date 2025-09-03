@@ -77,17 +77,19 @@ if __name__ == "__main__":
     
     model = None
     for image_dir in image_dirs:
+        # Create the predictions folder adjacent to the rgb folder if not exists
         pred_dir = path.join(image_dir, "..", "predictions")
         os.makedirs(pred_dir, exist_ok=True)
         image_paths = sorted(glob(path.join(image_dir, "*.png")))
+        
         for image_path in image_paths:
             # Read the image to numpy
             img = cv2.imread(image_path, cv2.IMREAD_COLOR)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             print(img.shape)
             
+            # Reset the prediction for each new image
             img_pred = None
-            
             for model_path in args.model_paths:
                 # If multiple models were supplied, perform ensemble prediction
                 if len(args.model_paths) > 1:
@@ -97,10 +99,12 @@ if __name__ == "__main__":
                     # If a single model was supplied, skip reloading model
                     if model is None:
                         model = tf.keras.models.load_model(model_path)
-                        
+                
+                # Predict the image in four tiles, using the model's input shape
                 pred = predict_in_four_tiles(model, img)
                 print(pred.shape, np.amax(pred))
             
+                # If this is the first prediction, use it as the base, otherwise add to it
                 if img_pred is None:
                     img_pred = pred
                 else:
@@ -109,8 +113,12 @@ if __name__ == "__main__":
                 # If a single model was supplied, keep current model alive
                 if len(args.model_paths) > 1:
                     del model
-                    
+            
+            # Perform argmax only after all softmax predictions from models and tiles have
+            # been combined, for an ensembled segmentation
             img_pred = np.argmax(img_pred, axis=-1)
             print(pred_dir)
+            
+            # Export the segmentation to PNG
             cv2.imwrite(path.join(pred_dir, path.basename(image_path)), img_pred.astype(np.uint8))
         
