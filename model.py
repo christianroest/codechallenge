@@ -12,8 +12,9 @@ from tensorflow.keras.models import Model
 def build_model(
     input_shape: tuple,
     num_classes: int,
-    num_down_steps: int = 4,
-    num_filters_start: int = 32,
+    num_down_steps: int = 7,
+    num_filters_start: int = 16,
+    num_filters_max: int = 512,
 ) -> tf.keras.models.Model:
     """
     Basic model class that implements a very simple model to test the rest of the pipeline
@@ -31,14 +32,14 @@ def build_model(
             kernel_size,
             activation=activation,
             padding=padding,
-            kernel_regularizer="l2",
+            #kernel_regularizer="l2",
         )(x)
         x = Conv2D(
             filters,
             kernel_size,
             activation=activation,
             padding=padding,
-            kernel_regularizer="l2",
+            #kernel_regularizer="l2",
         )(x)
         return x
 
@@ -52,20 +53,18 @@ def build_model(
     x = i
     num_filters = num_filters_start
     for _ in range(num_down_steps):
-        x = conv_block(x, num_filters)
+        x = conv_block(x, min(num_filters, num_filters_max))
         skips.append(x)
         x = MaxPooling2D((2, 2))(x)
-        x = MaxPooling2D((2, 2))(x)
         num_filters *= 2
-    x = conv_block(x, num_filters)
+    x = conv_block(x, min(num_filters, num_filters_max))
     skips = reversed(skips)
     num_filters //= 2
     # Upsampling path
     for skip in skips:
-        x = Conv2DTranspose(num_filters, (2, 2), strides=(2, 2), padding="same")(x)
-        x = Conv2DTranspose(num_filters, (2, 2), strides=(2, 2), padding="same")(x)
+        x = Conv2DTranspose(min(num_filters, num_filters_max), (2, 2), strides=(2, 2), padding="same")(x)
         x = concatenate([x, skip])
-        x = conv_block(x, num_filters)
+        x = conv_block(x, min(num_filters, num_filters_max))
         num_filters //= 2
 
     o = Conv2D(num_classes, (3, 3), padding="same")(x)
