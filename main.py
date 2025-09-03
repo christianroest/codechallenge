@@ -10,8 +10,11 @@ from model import build_model
 from viz import plot_sample
 from loss import CategoricalFocalCrossentropy, CategoricalDiceLoss
 
-in_shape = 1024, 1024, 3
-out_classes = {
+# Define model input shape
+IN_SHAPE = 1024, 1024, 3
+
+# Define output classes
+OUT_CLASSES = {
     0: "Background",
     1: "Tool clasper",
     2: "Tool wrist",
@@ -23,35 +26,50 @@ out_classes = {
     8: "Clamps",
     9: "Catheter",
 }
-data_root = "/scratch/p286425/challenge/data/code_data/"
+
+# Location of the data
+DATA_ROOT = "/scratch/p286425/challenge/data/code_data/"
+
+# Location to output prediction and data samples
 SAMPLE_DIR = "./samples/"
+
+# Number of epochs to train
 NUM_EPOCHS = 150
 
+# Batch size for training
 TRAIN_BATCH_SIZE = 10
 
 if __name__ == "__main__":
 
     # Get all training directories
-    all_train_dirs = sorted(glob(path.join(data_root, "video_*/")))
+    all_train_dirs = sorted(glob(path.join(DATA_ROOT, "video_*/")))
+    
+    # Shuffle the training directories
     rng = np.random.default_rng(12345)
     rng.shuffle(all_train_dirs)
-    num_train_dirs = round(len(all_train_dirs) * 0.8)
+    
+    # Determine how many videos to use for training and validation
+    num_train_dirs = round(len(all_train_dirs) * 0.9)
     num_val_dirs = len(all_train_dirs) - num_train_dirs
     print(f"Using {num_train_dirs} directories for train and {num_val_dirs} for val")
-
-    train_dirs = all_train_dirs[: int(0.9 * len(all_train_dirs))]
-    valid_dirs = all_train_dirs[int(0.9 * len(all_train_dirs)) :]
+    
+    # Split videos into training and validation
+    train_dirs = all_train_dirs[: num_train_dirs]
+    valid_dirs = all_train_dirs[num_train_dirs :]
     print("Train dirs:", train_dirs)
     print("Val dirs:", valid_dirs)
 
-    # First create the training and validation datasets
-    train_dataset = make_tf_dataset(train_dirs, random_crop=in_shape[:2], shuffle_before_load=True)
+    # Create tf.data dataset for the training data
+    # Shuffle all filenames to make sure varied data is shown during training
+    train_dataset = make_tf_dataset(train_dirs, random_crop=IN_SHAPE[:2], shuffle_before_load=True)
     train_dataset = train_dataset.batch(TRAIN_BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
     train_dataset = train_dataset.repeat()
 
-    valid_dataset = make_tf_dataset(valid_dirs, center_crop=in_shape[:2])
+    # Make a static validation set (non repeating)
+    valid_dataset = make_tf_dataset(valid_dirs, center_crop=IN_SHAPE[:2])
     valid_dataset = valid_dataset.batch(1).prefetch(tf.data.AUTOTUNE)
 
+    # Extract a smaller set to inspect predictions during training
     sample_set = valid_dataset.take(10)
     
     # Take the first 10 batches as a list of tensors
@@ -62,10 +80,12 @@ if __name__ == "__main__":
     
     # Concatenate along batch axis
     sample_inputs = tf.concat(sample_inputs, axis=0)
-
+    
+    # Export images and segmentations once
     for i, (imgs, segs) in enumerate(sample_set):
         os.makedirs(SAMPLE_DIR, exist_ok=True)
         
+        # Debugging
         print(f"Sample {i:02d}:")
         print(imgs.numpy().shape)
         print(segs.numpy().shape)
@@ -76,11 +96,12 @@ if __name__ == "__main__":
 
         print(img.shape, seg.shape)
 
-        img = img[0]  # Remove batch dim
-        seg = seg[0] # Remove batch dim
-        seg = np.argmax(seg, axis=-1)  # Convert one-hot to int
-        print("SASDADS", seg.shape)
-        cv2.imwrite(f"{SAMPLE_DIR}/sample_img_{i:02d}.png", cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+        # Remove batch dimension and export as PNG
+        img = img[0]
+        seg = seg[0]
+        
+        # Argmax the segmentation 
+        seg = np.argmax(seg, axis=-1)
 
         # Export the segmentation as a color image
         # Map each class to a color for better visualization
@@ -100,33 +121,40 @@ if __name__ == "__main__":
         for cls, color in enumerate(colors):
             seg_color[seg == cls] = color
         
+        # Export as PNG
+        cv2.imwrite(f"{SAMPLE_DIR}/sample_img_{i:02d}.png", cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
         cv2.imwrite(f"{SAMPLE_DIR}/sample_seg_{i:02d}.png", cv2.cvtColor(seg_color, cv2.COLOR_RGB2BGR))
         plot_sample(img, seg, f"{SAMPLE_DIR}/sample_plot_{i:02d}.png")
 
-    # Build the model
-    m = build_model(in_shape, len(out_classes))
+    # Build the U-Net model and show summary
+    m = build_model(IN_SHAPE, len(OUT_CLASSES))
     m.summary()
     m.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=2e-4),
-        # loss=SparseDiceLoss(num_classes=len(out_classes)),
+        # loss=SparseDiceLoss(num_classes=len(OUT_CLASSES)),
         loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
         # loss=CategoricalFocalCrossentropy(from_logits=True),
         # loss=CategoricalDiceLoss(from_logits=True),
         metrics=["accuracy"],
     )
 
-    print(train_dataset.take(1))
-    
+    # Define variables to keep track of best epoch and loss
     best_loss = 999999.
     best_epoch = -1
+    
+    # Start training loop
     for epoch in range(NUM_EPOCHS):
         print(f"Epoch {epoch+1}/{NUM_EPOCHS}")
+        
+        # Fit the model for one training epoch
         m.fit(train_dataset, epochs=1, steps_per_epoch=200)
-        preds = m.predict(sample_inputs)  # Run a prediction to test the model
+        
+        # Predict on the smaller subset and export the predicted segmentations
+        preds = m.predict(sample_inputs)
         int_preds = np.argmax(preds, axis=-1).astype(np.uint8)
-        print("INT_PREDS:", int_preds.shape, np.amax(int_preds))
+        print("Prediction shape and max predicted class:", int_preds.shape, np.amax(int_preds))
 
-        # Export the predictions
+        # Iterate over the prediction array
         for i, p in enumerate(int_preds):
 
             # Export the segmentation as a color image
@@ -147,13 +175,16 @@ if __name__ == "__main__":
             for cls, color in enumerate(colors):
                 pred_color[p == cls] = color
             
+            # Export as PNG
             cv2.imwrite(f"{SAMPLE_DIR}/sample_pred_{i:02d}.png", cv2.cvtColor(pred_color, cv2.COLOR_RGB2BGR))
-
+        
+        # Evaluate the performance on the full validation set to gauge performance
         loss, accuracy = m.evaluate(valid_dataset)
         
         print(f"Validation loss: {loss:.4f}")
         print(f"Validation accuracy: {accuracy:.4f}")
         
+        # If the validation loss improves, store the model as best_loss.h5
         if loss < best_loss:
             print(f"[I] Validation loss improved from {best_loss:.4f} (epoch {best_epoch}) to {loss:.4f} (epoch {epoch})")
             best_epoch = epoch
@@ -161,5 +192,6 @@ if __name__ == "__main__":
             print("Saving to best_loss.h5")
             m.save("best_loss.h5")
         
+        # Export the latest available model
         print("Saving to latest.h5")
         m.save("latest.h5")
