@@ -50,45 +50,73 @@ def process_path(file_path: str) -> Tuple[tf.Tensor, tf.Tensor]:
 
 
 def random_crop_img_and_seg(img, seg, crop_size):
+    """
+    Crops the same random region from image and matching segmentation
+    """
     combined = tf.concat([img, seg], axis=-1)
     combined_cropped = tf.image.random_crop(combined, size=[*crop_size, 13])
     return combined_cropped[:, :, :3], combined_cropped[:, :, 3:]
 
 def central_crop(img, size):
+    """
+    Crops the same central region from image and matching segmentation
+    """
     h, w = tf.shape(img)[0], tf.shape(img)[1]
     top = (h - size[0]) // 2
     left = (w - size[1]) // 2
     return img[top:top+size[0], left:left+size[1]]
 
 def make_tf_dataset(
-    dir_names: List[str], random_crop=None, center_crop=None, num_classes=10, shuffle_before_load=False
+    dir_names: List[str], 
+    random_crop=None,
+    center_crop=None, 
+    num_classes=10, 
+    shuffle_before_load=False
 ) -> tf.data.Dataset:
     img_files = []
+    """
+    Creates a tf.data.Dataset from an SAR-RARP50 (or similarly structured) dataset.
+    Takes a list of directories to include in the dataset.
+    
+    Allows specifying random or central crop shape, to automatically extract cropped
+    regions on the fly during iterations.
+    
+    If `shuffle_before_load` is set to True, it shuffles all the paths (unbuffered)
+    prior to creating the iterator.
+    """
 
     assert not (
         random_crop is not None and center_crop is not None
     ), "Only one of random_crop or center_crop can be specified"
 
+    # Add all the PNG files from the provided directories
     for base_dir in dir_names:
         img_files += glob(path.join(base_dir, "rgb/*.png"))
     
+    # If specified, shuffle all paths prior to creating iterator, to ensure a full 
+    # and unbuffered shuffle
     if shuffle_before_load:
         rng = np.random.default_rng(12345)
         rng.shuffle(img_files)
     
+    # Build the TensorFlow dataset
     img_files = tf.data.Dataset.from_tensor_slices(np.array(img_files).flatten())
     img_files = img_files.shuffle(buffer_size=500, reshuffle_each_iteration=False)
+    
+    # Map the loading function
     dataset = img_files.map(
         lambda x: tf.py_function(func=process_path, inp=[x], Tout=(tf.uint8, tf.uint8)),
         num_parallel_calls=tf.data.AUTOTUNE,
     )
 
+    # If wanted, map the random cropping function, to standardize image size
     if random_crop is not None:
         dataset = dataset.map(
             lambda img, seg: random_crop_img_and_seg(img, seg, random_crop),
             num_parallel_calls=tf.data.AUTOTUNE,
         )
 
+    # If wanted, map the central cropping function, to standardize image size
     if center_crop is not None:
         dataset = dataset.map(
             lambda img, seg: (central_crop(img, center_crop), central_crop(seg, center_crop)),
