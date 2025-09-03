@@ -1,6 +1,7 @@
 from os import path
 from glob import glob
 import os
+import argparse
 import cv2
 import numpy as np
 import tensorflow as tf
@@ -45,7 +46,10 @@ COLORS = [
 DATA_ROOT = "/scratch/p286425/challenge/data/code_data/"
 
 # Location to output prediction and data samples
-SAMPLE_DIR = "./samples/"
+SAMPLE_DIR = "samples/"
+
+# Location to store model output
+MODEL_DIR = "models/"
 
 # Number of epochs to train
 NUM_EPOCHS = 150
@@ -54,9 +58,21 @@ NUM_EPOCHS = 150
 TRAIN_BATCH_SIZE = 10
 
 if __name__ == "__main__":
+    # Parse input arguments
+    parser = argparse.ArgumentParser(description='Model training')
+    parser.add_argument('-r','--data-root', help='Path to the root of the training dataset', required=True)
+    parser.add_argument('-w','--work-dir', help='Path to the work dir for the training run', required=True)
+    args = parser.parse_args()
+    print(args.data_root, args.work_dir)
+    
+    # Create the work dir if it does not exist
+    sample_dir = path.join(args.work_dir, SAMPLE_DIR)
+    model_dir = path.join(args.work_dir, MODEL_DIR)
+    os.makedirs(sample_dir, exist_ok=True)
+    os.makedirs(model_dir, exist_ok=True)
 
     # Get all training directories
-    all_train_dirs = sorted(glob(path.join(DATA_ROOT, "video_*/")))
+    all_train_dirs = sorted(glob(path.join(args.data_root, "video_*/")))
     
     # Shuffle the training directories
     rng = np.random.default_rng(12345)
@@ -97,7 +113,7 @@ if __name__ == "__main__":
     
     # Export images and segmentations once
     for i, (imgs, segs) in enumerate(sample_set):
-        os.makedirs(SAMPLE_DIR, exist_ok=True)
+        os.makedirs(sample_dir, exist_ok=True)
         
         # Debugging
         print(f"Sample {i:02d}:")
@@ -124,9 +140,9 @@ if __name__ == "__main__":
             seg_color[seg == cls] = color
         
         # Export as PNG
-        cv2.imwrite(f"{SAMPLE_DIR}/sample_img_{i:02d}.png", cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
-        cv2.imwrite(f"{SAMPLE_DIR}/sample_seg_{i:02d}.png", cv2.cvtColor(seg_color, cv2.COLOR_RGB2BGR))
-        plot_sample(img, seg, f"{SAMPLE_DIR}/sample_plot_{i:02d}.png")
+        cv2.imwrite(f"{sample_dir}/sample_{i:02d}_img.png", cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+        cv2.imwrite(f"{sample_dir}/sample_{i:02d}_seg.png", cv2.cvtColor(seg_color, cv2.COLOR_RGB2BGR))
+        plot_sample(img, seg, f"{sample_dir}/sample_{i:02d}_plot.png")
 
     # Build the U-Net model and show summary
     m = build_model(IN_SHAPE, len(OUT_CLASSES))
@@ -167,7 +183,7 @@ if __name__ == "__main__":
                 pred_color[p == cls] = color
             
             # Export as PNG
-            cv2.imwrite(f"{SAMPLE_DIR}/sample_pred_{i:02d}.png", cv2.cvtColor(pred_color, cv2.COLOR_RGB2BGR))
+            cv2.imwrite(f"{sample_dir}/sample_{i:02d}_pred.png", cv2.cvtColor(pred_color, cv2.COLOR_RGB2BGR))
         
         # Evaluate the performance on the full validation set to gauge performance
         loss, accuracy = m.evaluate(valid_dataset)
@@ -180,9 +196,9 @@ if __name__ == "__main__":
             print(f"[I] Validation loss improved from {best_loss:.4f} (epoch {best_epoch}) to {loss:.4f} (epoch {epoch})")
             best_epoch = epoch
             best_loss = loss
-            print("Saving to best_loss.h5")
-            m.save("best_loss.h5")
+            print(f"Saving to {model_dir}/best_loss.h5")
+            m.save(f"{model_dir}/best_loss.h5")
         
         # Export the latest available model
-        print("Saving to latest.h5")
-        m.save("latest.h5")
+        print(f"Saving to {model_dir}/latest.h5")
+        m.save(f"{model_dir}/latest.h5")
