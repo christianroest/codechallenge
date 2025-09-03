@@ -6,7 +6,41 @@ import cv2
 import numpy as np
 import tensorflow as tf
 
-def predict_in_four_tiles(model, img):
+def predict_in_four_tiles(model: tf.keras.Model, img: np.ndarray):
+"""
+    Run inference on a large image by splitting it into four overlapping tiles.
+
+    This function assumes the model has a fixed spatial input size
+    (height, width, channels). It extracts the four corner crops of the
+    input image, each matching the model input size, runs prediction on
+    each tile, applies softmax to the logits, and then places the
+    predictions back into the corresponding region of the output array.
+
+    Parameters
+    ----------
+    model : tf.keras.Model
+        Trained Keras/TensorFlow model with a 2D image input of fixed size.
+        The model must output per-pixel class scores (logits).
+    img : np.ndarray
+        Input image as a NumPy array of shape (H, W, C) with channel-last
+        layout. The height and width must be at least as large as the model's
+        required input size.
+
+    Returns
+    -------
+    preds : np.ndarray
+        Array of shape (H, W, num_classes) containing the per-pixel softmax
+        probabilities from combining the four tiles.
+
+    Notes
+    -----
+    - The four tiles are taken as the top-left, top-right, bottom-left,
+      and bottom-right corners of the input image.
+    - If H or W does not exactly match the tile size, the function crops
+      to fit, so central regions may not be predicted.
+    - For full coverage on arbitrary image sizes, a more general tiling
+      strategy is required.
+    """
     H, W, C = img.shape
     tile_size = model.input_shape[1:3]
     th, tw = tile_size
@@ -41,6 +75,7 @@ if __name__ == "__main__":
     image_dirs = sorted(glob(path.join(args.data_root, "**/rgb/"), recursive=True))
     print(image_dirs)
     
+    model = None
     for image_dir in image_dirs:
         pred_dir = path.join(image_dir, "..", "predictions")
         os.makedirs(pred_dir, exist_ok=True)
@@ -54,9 +89,15 @@ if __name__ == "__main__":
             img_pred = None
             
             for model_path in args.model_paths:
-                model = tf.keras.models.load_model(model_path)
-                model.summary()
-                
+                # If multiple models were supplied, perform ensemble prediction
+                if len(args.model_paths) > 1:
+                    model = tf.keras.models.load_model(model_path)
+                    model.summary()
+                else:
+                    # If a single model was supplied, skip reloading model
+                    if model is None:
+                        model = tf.keras.models.load_model(model_path)
+                        
                 pred = predict_in_four_tiles(model, img)
                 print(pred.shape, np.amax(pred))
             
@@ -65,7 +106,10 @@ if __name__ == "__main__":
                 else:
                     img_pred += pred
                 
-                del model
+                # If a single model was supplied, keep current model alive
+                if len(args.model_paths) > 1:
+                    del model
+                    
             img_pred = np.argmax(img_pred, axis=-1)
             print(pred_dir)
             cv2.imwrite(path.join(pred_dir, path.basename(image_path)), img_pred.astype(np.uint8))
