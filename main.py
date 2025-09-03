@@ -115,4 +115,4 @@ if __name__ == "__main__":
 
         # Export the predictions
         for i, p in enumerate(int_preds):
-            cv2.imwrite(f"sample_pred_{i}.png", p * 20)  # Scale for visibility
+            cv2.imwrite(f"{SAMPLE_DIR}/sample_pred_{i}.png", p * 20)  # Scale for visibility
