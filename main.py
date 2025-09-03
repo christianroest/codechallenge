@@ -26,31 +26,41 @@ out_classes = {
 data_root = "/scratch/p286425/challenge/data/code_data/"
 SAMPLE_DIR = "./samples/"
 NUM_EPOCHS = 25
+TRAIN_BATCH_SIZE = 10
 
 if __name__ == "__main__":
 
     # Get all training directories
-    all_train_dirs = sorted(glob(path.join(data_root, "video_*/")))[:30]
+    all_train_dirs = sorted(glob(path.join(data_root, "video_*/")))
     rng = np.random.default_rng(12345)
     rng.shuffle(all_train_dirs)
     num_train_dirs = round(len(all_train_dirs) * 0.8)
     num_val_dirs = len(all_train_dirs) - num_train_dirs
     print(f"Using {num_train_dirs} directories for train and {num_val_dirs} for val")
 
-    train_dirs = all_train_dirs[: int(0.8 * len(all_train_dirs))]
-    valid_dirs = all_train_dirs[int(0.8 * len(all_train_dirs)) :]
+    train_dirs = all_train_dirs[: int(0.9 * len(all_train_dirs))]
+    valid_dirs = all_train_dirs[int(0.9 * len(all_train_dirs)) :]
     print("Train dirs:", train_dirs)
     print("Val dirs:", valid_dirs)
 
     # First create the training and validation datasets
     train_dataset = make_tf_dataset(train_dirs, random_crop=in_shape[:2])
-    train_dataset = train_dataset.batch(1).prefetch(tf.data.AUTOTUNE)
+    train_dataset = train_dataset.batch(TRAIN_BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
     train_dataset = train_dataset.repeat()
 
     valid_dataset = make_tf_dataset(valid_dirs, center_crop=in_shape[:2])
     valid_dataset = valid_dataset.batch(1).prefetch(tf.data.AUTOTUNE)
 
     sample_set = valid_dataset.take(10)
+    
+    # Take the first 10 batches as a list of tensors
+    sample_set_list = list(sample_set)
+
+    # If dataset yields (x, y), extract only x
+    sample_inputs = [x for x, y in sample_set_list]
+    
+    # Concatenate along batch axis
+    sample_inputs = tf.concat(sample_inputs, axis=0)
 
     for i, (imgs, segs) in enumerate(sample_set):
         os.makedirs(SAMPLE_DIR, exist_ok=True)
@@ -108,11 +118,16 @@ if __name__ == "__main__":
 
     for epoch in range(NUM_EPOCHS):
         print(f"Epoch {epoch+1}/{NUM_EPOCHS}")
-        m.fit(train_dataset, epochs=1, steps_per_epoch=500)
-        preds = m.predict(sample_set)  # Run a prediction to test the model
+        m.fit(train_dataset, epochs=1, steps_per_epoch=50)
+        preds = m.predict(sample_inputs)  # Run a prediction to test the model
         int_preds = tf.argmax(preds, axis=-1).numpy().astype(np.uint8)
         print(int_preds.shape)
 
         # Export the predictions
         for i, p in enumerate(int_preds):
             cv2.imwrite(f"{SAMPLE_DIR}/sample_pred_{i}.png", p * 20)  # Scale for visibility
+
+        loss, accuracy = m.evaluate(valid_dataset)
+        
+        print(f"Validation loss: {loss:.4f}")
+        print(f"Validation accuracy: {accuracy:.4f}")

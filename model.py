@@ -12,8 +12,8 @@ from tensorflow.keras.models import Model
 def build_model(
     input_shape: tuple,
     num_classes: int,
-    num_down_steps: int = 5,
-    num_filters_start: int = 16,
+    num_down_steps: int = 4,
+    num_filters_start: int = 32,
 ) -> tf.keras.models.Model:
     """
     Basic model class that implements a very simple model to test the rest of the pipeline
@@ -55,12 +55,14 @@ def build_model(
         x = conv_block(x, num_filters)
         skips.append(x)
         x = MaxPooling2D((2, 2))(x)
+        x = MaxPooling2D((2, 2))(x)
         num_filters *= 2
     x = conv_block(x, num_filters)
     skips = reversed(skips)
     num_filters //= 2
     # Upsampling path
     for skip in skips:
+        x = Conv2DTranspose(num_filters, (2, 2), strides=(2, 2), padding="same")(x)
         x = Conv2DTranspose(num_filters, (2, 2), strides=(2, 2), padding="same")(x)
         x = concatenate([x, skip])
         x = conv_block(x, num_filters)
