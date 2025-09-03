@@ -27,6 +27,19 @@ OUT_CLASSES = {
     9: "Catheter",
 }
 
+COLORS = [
+    (0, 0, 0),       # Background - Black
+    (255, 0, 0),     # Tool clasper - Blue
+    (0, 255, 0),     # Tool wrist - Green
+    (0, 0, 255),     # Tool shaft - Red
+    (255, 255, 0),   # Suturing needle - Cyan
+    (255, 0, 255),   # Thread - Magenta
+    (0, 255, 255),   # Suction tool - Yellow
+    (128, 0, 128),   # Needle Holder - Purple
+    (128, 128, 0),   # Clamps - Olive
+    (0, 128, 128),   # Catheter - Teal
+]
+
 # Location of the data
 DATA_ROOT = "/scratch/p286425/challenge/data/code_data/"
 
@@ -106,19 +119,7 @@ if __name__ == "__main__":
         # Export the segmentation as a color image
         # Map each class to a color for better visualization
         seg_color = np.zeros((seg.shape[0], seg.shape[1], 3), dtype=np.uint8)
-        colors = [
-            (0, 0, 0),        # Background - Black
-            (255, 0, 0),     # Tool clasper - Blue
-            (0, 255, 0),     # Tool wrist - Green
-            (0, 0, 255),     # Tool shaft - Red
-            (255, 255, 0),   # Suturing needle - Cyan
-            (255, 0, 255),   # Thread - Magenta
-            (0, 255, 255),   # Suction tool - Yellow
-            (128, 0, 128),   # Needle Holder - Purple
-            (128, 128, 0),   # Clamps - Olive
-            (0, 128, 128),   # Catheter - Teal
-        ]
-        for cls, color in enumerate(colors):
+        for cls, color in enumerate(COLORS):
             seg_color[seg == cls] = color
         
         # Export as PNG
@@ -160,19 +161,8 @@ if __name__ == "__main__":
             # Export the segmentation as a color image
             # Map each class to a color for better visualization
             pred_color = np.zeros((p.shape[0], p.shape[1], 3), dtype=np.uint8)
-            colors = [
-                (0, 0, 0),        # Background - Black
-                (255, 0, 0),     # Tool clasper - Blue
-                (0, 255, 0),     # Tool wrist - Green
-                (0, 0, 255),     # Tool shaft - Red
-                (255, 255, 0),   # Suturing needle - Cyan
-                (255, 0, 255),   # Thread - Magenta
-                (0, 255, 255),   # Suction tool - Yellow
-                (128, 0, 128),   # Needle Holder - Purple
-                (128, 128, 0),   # Clamps - Olive
-                (0, 128, 128),   # Catheter - Teal
-            ]
-            for cls, color in enumerate(colors):
+            
+            for cls, color in enumerate(COLORS):
                 pred_color[p == cls] = color
             
             # Export as PNG
