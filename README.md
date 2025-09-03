@@ -24,11 +24,52 @@ opencv-python==4.10.0.84
 ```
 
 A GPU with sufficient VRAM is required to run the model with the parameters and batch size used during development.
-The code was tested on 32 GB Tesla V100 and 40GB NVidia L40S.
+The code was tested on 32 GB Tesla V100 and 40GB NVidia L40S. 
+`tf.data.AUTOTUNE` is used to optimize performance at runtime depending on the hardware.
 
 It is recommended to install the packages in a Python virtual environment:
 
 ```
 python3 -m venv .env
 source .env/bin/activate
+```
+
+## Preparing the dataset
+This description applies to the SAR-RARP50 dataset, but the same instructions apply to other datasets following the same data structure.
+Download the training dataset to a location on your filesystem. 
+Extract each zip file, such that the file structure look as follows:
+```
+[training_data_root]
+|- video_01
+ |- segmentations
+  |- 000000000.png
+  |- 000000060.png
+  |- 000000120.png
+  |- [...]
+ |- video_left.avi
+ |- [...]
+```
+
+Next, run the following command to start sampling PNG files from the video files at 1HZ, which will serve as the input images. 
+```
+python scripts/sample_video.py [training_data_root] -f 1 -r
+```
+
+This will create a subfolder `rgb` in each of the video directories, containing images matching the segmentations.
+After this process completes, your data folder should look as follows:
+```
+[training_data_root]
+|- video_01
+ |- segmentations
+  |- 000000000.png
+  |- 000000060.png
+  |- 000000120.png
+  |- [...]
+ |- rgb
+  |- 000000000.png
+  |- 000000060.png
+  |- 000000120.png
+  |- [...]
+ |- video_left.avi
+ |- [...]
 ```
