@@ -212,3 +212,4 @@ __marimo__/
 .idea/
 *.png
 .nfs*
+*.h5
