@@ -30,7 +30,7 @@ NUM_EPOCHS = 25
 if __name__ == "__main__":
 
     # Get all training directories
-    all_train_dirs = sorted(glob(path.join(data_root, "video_*/")))[:3]
+    all_train_dirs = sorted(glob(path.join(data_root, "video_*/")))[:30]
     rng = np.random.default_rng(12345)
     rng.shuffle(all_train_dirs)
     num_train_dirs = round(len(all_train_dirs) * 0.8)
