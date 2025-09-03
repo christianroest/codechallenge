@@ -8,7 +8,7 @@ import tensorflow as tf
 from data import make_tf_dataset
 from model import build_model
 from viz import plot_sample
-from loss import SparseDiceLoss
+from loss import CategoricalFocalCrossentropy
 
 in_shape = 1024, 1024, 3
 out_classes = {
@@ -23,14 +23,14 @@ out_classes = {
     8: "Clamps",
     9: "Catheter",
 }
-data_root = "/mnt/d/code_data"
+data_root = "/scratch/p286425/challenge/data/code_data/"
 SAMPLE_DIR = "./samples/"
 NUM_EPOCHS = 25
 
 if __name__ == "__main__":
 
     # Get all training directories
-    all_train_dirs = glob(path.join(data_root, "video_*/"))
+    all_train_dirs = sorted(glob(path.join(data_root, "video_*/")))[:3]
     rng = np.random.default_rng(12345)
     rng.shuffle(all_train_dirs)
     num_train_dirs = round(len(all_train_dirs) * 0.8)
@@ -50,7 +50,7 @@ if __name__ == "__main__":
     valid_dataset = make_tf_dataset(valid_dirs, center_crop=in_shape[:2])
     valid_dataset = valid_dataset.batch(1).prefetch(tf.data.AUTOTUNE)
 
-    sample_set = valid_dataset.take(25)
+    sample_set = valid_dataset.take(10)
 
     for i, (imgs, segs) in enumerate(sample_set):
         os.makedirs(SAMPLE_DIR, exist_ok=True)
@@ -99,7 +99,7 @@ if __name__ == "__main__":
         optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
         # loss=SparseDiceLoss(num_classes=len(out_classes)),
         # loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
-        loss=tf.keras.losses.CategoricalFocalCrossentropy(from_logits=True),
+        loss=CategoricalFocalCrossentropy(from_logits=True),
         metrics=["accuracy"],
     )
 

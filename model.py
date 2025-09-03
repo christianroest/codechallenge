@@ -12,8 +12,8 @@ from tensorflow.keras.models import Model
 def build_model(
     input_shape: tuple,
     num_classes: int,
-    num_down_steps: int = 3,
-    num_filters_start: int = 8,
+    num_down_steps: int = 5,
+    num_filters_start: int = 16,
 ) -> tf.keras.models.Model:
     """
     Basic model class that implements a very simple model to test the rest of the pipeline
