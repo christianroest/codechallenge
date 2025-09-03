@@ -65,13 +65,13 @@ if __name__ == "__main__":
     for i, (imgs, segs) in enumerate(sample_set):
         os.makedirs(SAMPLE_DIR, exist_ok=True)
         
-        print(f"Sample {i}:")
+        print(f"Sample {i:02d}:")
         print(imgs.numpy().shape)
         print(segs.numpy().shape)
 
         # Export a few samples to the workdir
         img = imgs.numpy().astype(np.uint8)
-        seg = segs.numpy().astype(np.uint8) * 20  # Scale segmentation for visibility
+        seg = segs.numpy().astype(np.uint8)  # Scale segmentation for visibility
 
         print(img.shape, seg.shape)
 
@@ -79,7 +79,7 @@ if __name__ == "__main__":
         seg = seg[0] # Remove batch dim
         seg = np.argmax(seg, axis=-1)  # Convert one-hot to int
         print("SASDADS", seg.shape)
-        cv2.imwrite(f"{SAMPLE_DIR}/sample_img_{i}.png", cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+        cv2.imwrite(f"{SAMPLE_DIR}/sample_img_{i:02d}.png", cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
 
         # Export the segmentation as a color image
         # Map each class to a color for better visualization
@@ -99,8 +99,8 @@ if __name__ == "__main__":
         for cls, color in enumerate(colors):
             seg_color[seg == cls] = color
         
-        cv2.imwrite(f"{SAMPLE_DIR}/sample_seg_{i}.png", cv2.cvtColor(seg_color, cv2.COLOR_RGB2BGR))
-        plot_sample(img, seg, f"{SAMPLE_DIR}/sample_plot_{i}.png")
+        cv2.imwrite(f"{SAMPLE_DIR}/sample_seg_{i:02d}.png", cv2.cvtColor(seg_color, cv2.COLOR_RGB2BGR))
+        plot_sample(img, seg, f"{SAMPLE_DIR}/sample_plot_{i:02d}.png")
 
     # Build the model
     m = build_model(in_shape, len(out_classes))
@@ -109,8 +109,8 @@ if __name__ == "__main__":
         optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
         # loss=SparseDiceLoss(num_classes=len(out_classes)),
         # loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
-        loss=CategoricalFocalCrossentropy(from_logits=True),
-        # loss=CategoricalDiceLoss(from_logits=True),
+        # loss=CategoricalFocalCrossentropy(from_logits=True),
+        loss=CategoricalDiceLoss(from_logits=True),
         metrics=["accuracy"],
     )
 
@@ -118,14 +118,33 @@ if __name__ == "__main__":
 
     for epoch in range(NUM_EPOCHS):
         print(f"Epoch {epoch+1}/{NUM_EPOCHS}")
-        m.fit(train_dataset, epochs=1, steps_per_epoch=50)
+        m.fit(train_dataset, epochs=1, steps_per_epoch=100)
         preds = m.predict(sample_inputs)  # Run a prediction to test the model
-        int_preds = tf.argmax(preds, axis=-1).numpy().astype(np.uint8)
-        print(int_preds.shape)
+        int_preds = np.argmax(preds, axis=-1).astype(np.uint8)
+        print("INT_PREDS:", int_preds.shape, np.amax(int_preds))
 
         # Export the predictions
         for i, p in enumerate(int_preds):
-            cv2.imwrite(f"{SAMPLE_DIR}/sample_pred_{i}.png", p * 20)  # Scale for visibility
+
+            # Export the segmentation as a color image
+            # Map each class to a color for better visualization
+            pred_color = np.zeros((p.shape[0], p.shape[1], 3), dtype=np.uint8)
+            colors = [
+                (0, 0, 0),        # Background - Black
+                (255, 0, 0),     # Tool clasper - Blue
+                (0, 255, 0),     # Tool wrist - Green
+                (0, 0, 255),     # Tool shaft - Red
+                (255, 255, 0),   # Suturing needle - Cyan
+                (255, 0, 255),   # Thread - Magenta
+                (0, 255, 255),   # Suction tool - Yellow
+                (128, 0, 128),   # Needle Holder - Purple
+                (128, 128, 0),   # Clamps - Olive
+                (0, 128, 128),   # Catheter - Teal
+            ]
+            for cls, color in enumerate(colors):
+                pred_color[p == cls] = color
+            
+            cv2.imwrite(f"{SAMPLE_DIR}/sample_pred_{i:02d}.png", cv2.cvtColor(pred_color, cv2.COLOR_RGB2BGR))
 
         loss, accuracy = m.evaluate(valid_dataset)
         
