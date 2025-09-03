@@ -38,7 +38,7 @@ if __name__ == "__main__":
     print(args.data_root, args.model_paths)
     
     # Look for subdirs named "rgb"
-    image_dirs = glob(path.join(args.data_root, "**/rgb/"), recursive=True)
+    image_dirs = sorted(glob(path.join(args.data_root, "**/rgb/"), recursive=True))
     print(image_dirs)
     
     for image_dir in image_dirs:
@@ -49,7 +49,7 @@ if __name__ == "__main__":
             # Read the image to numpy
             img = cv2.imread(image_path, cv2.IMREAD_COLOR)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            print(img.shape)  # (1, H, W, C)
+            print(img.shape)
             
             img_pred = None
             
