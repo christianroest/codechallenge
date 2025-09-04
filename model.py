@@ -27,19 +27,23 @@ def build_model(
     """
 
     def conv_block(x, filters, kernel_size=(3, 3), activation="relu", padding="same"):
+        """
+        Build a convolutional block with two stacked Conv2D layers.
+    
+        This utility function applies two consecutive 2D convolutions with the same
+        number of filters, kernel size, activation, and padding.
+        """
         x = Conv2D(
             filters,
             kernel_size,
             activation=activation,
             padding=padding,
-            #kernel_regularizer="l2",
         )(x)
         x = Conv2D(
             filters,
             kernel_size,
             activation=activation,
             padding=padding,
-            #kernel_regularizer="l2",
         )(x)
         return x
 
@@ -52,26 +56,39 @@ def build_model(
     skips = []
     x = i
     num_filters = num_filters_start
+    
     for _ in range(num_down_steps):
+        # Apply two convolutions (conv_block)
         x = conv_block(x, min(num_filters, num_filters_max))
-        skips.append(x)
+        
+        # Save feature map for later concatenation
+        skips.append(x) 
+        
+        # Downsample by a factor of 2
         x = MaxPooling2D((2, 2))(x)
+        
+        # Double the number of feature maps at each deeper level
         num_filters *= 2
+    
+    # Bottom bottleneck layer    
     x = conv_block(x, min(num_filters, num_filters_max))
+    
+    # Reverse the skip list and halve the number of filters
     skips = reversed(skips)
     num_filters //= 2
+    
     # Upsampling path
     for skip in skips:
+        # Upsample using transposed convolutions
         x = Conv2DTranspose(min(num_filters, num_filters_max), (2, 2), strides=(2, 2), padding="same")(x)
+        
+        # Skip connection to downsampling path
         x = concatenate([x, skip])
+        
+        # Apply convolution after merging
         x = conv_block(x, min(num_filters, num_filters_max))
         num_filters //= 2
 
+    # Final output layer with num_classes channels (logit output)
     o = Conv2D(num_classes, (3, 3), padding="same")(x)
     return Model(i, o)
-
-
-if __name__ == "__main__":
-    in_shape = 1024, 1024, 3
-    m = build_model(in_shape, 1)
-    m.summary()
