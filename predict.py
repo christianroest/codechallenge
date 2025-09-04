@@ -75,7 +75,7 @@ if __name__ == "__main__":
     image_dirs = sorted(glob(path.join(args.data_root, "**/rgb/"), recursive=True))
     print(image_dirs)
     
-    model = None
+    models = [tf.keras.models.load_model(model_path) for model_path in args.model_paths]
     for image_dir in image_dirs:
         # Create the predictions folder adjacent to the rgb folder if not exists
         pred_dir = path.join(image_dir, "..", "predictions")
@@ -90,16 +90,7 @@ if __name__ == "__main__":
             
             # Reset the prediction for each new image
             img_pred = None
-            for model_path in args.model_paths:
-                # If multiple models were supplied, perform ensemble prediction
-                if len(args.model_paths) > 1:
-                    model = tf.keras.models.load_model(model_path)
-                    model.summary()
-                else:
-                    # If a single model was supplied, skip reloading model
-                    if model is None:
-                        model = tf.keras.models.load_model(model_path)
-                
+            for model in models:
                 # Predict the image in four tiles, using the model's input shape
                 pred = predict_in_four_tiles(model, img)
                 print(pred.shape, np.amax(pred))
@@ -109,10 +100,6 @@ if __name__ == "__main__":
                     img_pred = pred
                 else:
                     img_pred += pred
-                
-                # If a single model was supplied, keep current model alive
-                if len(args.model_paths) > 1:
-                    del model
             
             # Perform argmax only after all softmax predictions from models and tiles have
             # been combined, for an ensembled segmentation
