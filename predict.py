@@ -7,7 +7,7 @@ import numpy as np
 import tensorflow as tf
 
 def predict_in_four_tiles(model: tf.keras.Model, img: np.ndarray):
-"""
+    """
     Run inference on a large image by splitting it into four overlapping tiles.
 
     This function assumes the model has a fixed spatial input size
