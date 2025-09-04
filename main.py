@@ -10,6 +10,38 @@ from data import make_tf_dataset
 from model import build_model
 from viz import plot_sample
 
+# Define data augmentation steps (only applied to training data)
+def augment(image, mask):
+    # Cast to float to
+    image = tf.cast(image, tf.float32)
+
+    # 50% chance of yielding flipped image
+    do_flip = tf.random.uniform(()) > 0.5
+    image = tf.cond(do_flip,
+        lambda: tf.image.flip_left_right(image),
+        lambda: image)
+    mask = tf.cond(do_flip,
+        lambda: tf.image.flip_left_right(mask),
+        lambda: mask)
+
+    # 20% chance to adjust contrast of the input image
+    do_contrast = tf.random.uniform(()) > 0.8
+    image = tf.cond(do_flip,
+        lambda: tf.image.random_contrast(image, lower=0.8, upper=1.2),
+        lambda: image)
+
+    # 20% chance to add light Gaussian noise
+    do_noise = tf.random.uniform(()) < 0.2
+    def with_noise():
+        noise = tf.random.normal(shape=tf.shape(image), mean=0.0, stddev=5.0)
+        return tf.clip_by_value(image + noise, 0, 255)
+    image = tf.cond(do_noise, with_noise, lambda: image)
+    
+    # Cast back to uint8
+    image = tf.cast(image, tf.uint8)
+    
+    return image, mask
+
 # Define model input shape
 IN_SHAPE = 1024, 1024, 3
 
@@ -91,6 +123,7 @@ if __name__ == "__main__":
     # Create tf.data dataset for the training data
     # Shuffle all filenames to make sure varied data is shown during training
     train_dataset = make_tf_dataset(train_dirs, random_crop=IN_SHAPE[:2], shuffle_before_load=True)
+    train_dataset = train_dataset.map(augment, num_parallel_calls=tf.data.AUTOTUNE) # Add augmentation
     train_dataset = train_dataset.batch(TRAIN_BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
     train_dataset = train_dataset.repeat()
 
